@@ -6,7 +6,7 @@ Es un solo archivo (`bingo_control.html`), no necesita instalación ni backend, 
 
 ## Uso
 
-Abrí `bingo_control.html` (o la URL de GitHub Pages de este repo) y desde el botón **Configuración**:
+Abrí [La URL de GitHub Pages de este repo)](https://baimason.github.io/MusicalBingoManager/) y desde el botón **Configuración**:
 
 1. Pegá tu lista de canciones, una por línea, en formato `Artista - Título`.
 2. Pegá el link de tu playlist de YouTube Music (tiene que estar en visibilidad **No listado**, y el orden de las canciones ahí tiene que coincidir con el de la lista pegada arriba).
@@ -27,7 +27,3 @@ Desde el botón **Generar cartones**:
 - El reproductor usa la YouTube IFrame API, por eso necesita servirse desde una dirección http (GitHub Pages, o `python3 -m http.server` en local), abrir el archivo directo (`file://`) tira un Error 153.
 - Todo el estado (lista de canciones, playlist, progreso) se guarda en `localStorage` del navegador, no hay servidor ni base de datos.
 - Pensada para pantalla grande o proyector durante el evento, no está optimizada para celular.
-
-## Publicar con GitHub Pages
-
-Settings → Pages, y si el repo está en privado primero hay que pasarlo a público (Settings → General → Danger Zone → Change visibility) porque GitHub Pages en el plan gratis no funciona con repos privados.
