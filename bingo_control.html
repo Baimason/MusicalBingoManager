@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Control de Bingo Musical</title>
+<style>
+  :root {
+    --cream: #FFFBF2;
+    --outline: #1A1A1A;
+    --gold: #F5C451;
+    --accent: #C1652F;
+    --text: #37331F;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #FDF6E9;
+    color: var(--text);
+    margin: 0;
+    padding: 20px;
+  }
+  h1 { text-align: center; color: var(--accent); margin-bottom: 4px; }
+  .subtitle { text-align: center; color: #8a7a5c; margin-top: 0; margin-bottom: 20px; }
+  .layout {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 24px;
+    max-width: 1300px;
+    margin: 0 auto;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: white;
+    border: 3px solid var(--outline);
+    border-radius: 16px;
+    padding: 16px;
+  }
+  #setup input {
+    width: 100%;
+    padding: 10px;
+    font-size: 15px;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+  button {
+    font-family: inherit;
+    cursor: pointer;
+    border: 3px solid var(--outline);
+    border-radius: 10px;
+    background: var(--gold);
+    color: var(--outline);
+    font-weight: bold;
+    padding: 10px 16px;
+    font-size: 15px;
+  }
+  button:hover { filter: brightness(1.05); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  #player { width: 100%; max-width: 560px; aspect-ratio: 16/9; border-radius: 12px; overflow: hidden; border: 3px solid var(--outline); margin: 0 auto 14px; display: block; }
+  #fileWarning {
+    display: none;
+    background: #FBE1DD;
+    border: 2px solid #C1652F;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 14px;
+    margin-bottom: 14px;
+  }
+  #fileWarning code {
+    display: block;
+    background: #2b2620;
+    color: #f5e6c8;
+    padding: 8px 10px;
+    border-radius: 6px;
+    margin-top: 6px;
+    font-size: 13px;
+    overflow-x: auto;
+  }
+  .current-song {
+    text-align: center;
+    background: var(--cream);
+    border: 3px solid var(--outline);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .current-song .num {
+    font-size: 46px;
+    font-weight: 900;
+    color: var(--accent);
+    line-height: 1;
+  }
+  .current-song .title { font-size: 22px; font-weight: bold; margin-top: 6px; }
+  .current-song .artist { font-size: 16px; color: var(--accent); }
+  .controls { display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .stats { text-align: center; margin-bottom: 10px; font-size: 15px; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 6px;
+  }
+  @media (max-width: 700px) {
+    .grid { grid-template-columns: repeat(6, 1fr); }
+  }
+  .cell {
+    aspect-ratio: 1;
+    border: 2px solid var(--outline);
+    border-radius: 8px;
+    background: var(--cream);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .cell:hover { background: #ffe9c2; }
+  .cell.called {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+    text-decoration: line-through;
+  }
+  .cell.current {
+    background: var(--gold);
+    box-shadow: 0 0 0 3px var(--outline);
+  }
+  .note {
+    background: #FFF3D6;
+    border: 2px dashed var(--accent);
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 14px;
+    margin-bottom: 14px;
+  }
+  .note b { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<h1>Bingo Musical</h1>
+<p class="subtitle">Panel de control del anfitrión</p>
+
+<div class="layout">
+  <div>
+    <div class="panel" id="setup">
+      <b>1. Pega el link o ID de la playlist de YouTube Music</b>
+      <input type="text" id="playlistInput" placeholder="https://music.youtube.com/playlist?list=PL...">
+      <button id="loadBtn" style="width:100%">Cargar playlist</button>
+      <div class="note" style="margin-top:10px;">
+        <b>Importante:</b> en YouTube Music, abrí la playlist transferida y poné su visibilidad en
+        <b>"No listado"</b> (no hace falta pública), si queda en Privado el reproductor no va a poder cargarla.
+        Revisá también que el orden de la playlist sea el mismo en el que quedaron las canciones al transferirla,
+        porque el número de cada casilla corresponde a esa posición.
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <b>Progreso</b>
+      <div class="stats" id="stats">0 de 120 canciones cantadas</div>
+      <div class="controls">
+        <button id="resetBtn">Reiniciar juego</button>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div id="fileWarning">
+      <b>Este archivo se abrió como archivo local (file://)</b>, por eso YouTube tira el Error 153, no deja incrustar el reproductor así.
+      Hay que servirlo desde una direccion http. La forma mas rapida, si tenes Python instalado, abrí una terminal en la carpeta
+      donde esta este archivo y corré:
+      <code>python3 -m http.server 8000</code>
+      y despues abrí <b>http://localhost:8000/bingo_control.html</b> en el navegador (ese mismo archivo, no hace falta tocar nada mas).
+      Otra opción es subirlo a GitHub Pages como hiciste con Nikka, así queda con una URL fija y lo podés abrir desde el celular el día del evento.
+    </div>
+    <div id="player"></div>
+
+    <div class="current-song" id="currentSong">
+      <div class="num">&mdash;</div>
+      <div class="title">Todavía no ha sonado ninguna canción</div>
+      <div class="artist"></div>
+    </div>
+
+    <div class="controls">
+      <button id="randomBtn" style="font-size:18px; padding:14px 26px;">Cantar canción aleatoria</button>
+    </div>
+
+    <div class="panel">
+      <div class="grid" id="grid"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SONGS = [{"n": 1, "a": "Mentiras: La Serie", "t": "De Mi Enamórate"}, {"n": 2, "a": "Marisela", "t": "Mi Amor por Ti"}, {"n": 3, "a": "Alejandra Avalos", "t": "Amor fascíname"}, {"n": 4, "a": "Angelica Maria", "t": "No Es Mejor Que Yo"}, {"n": 5, "a": "Lucero", "t": "Siempre Contigo"}, {"n": 6, "a": "Marisela", "t": "Porque Tengo Ganas"}, {"n": 7, "a": "Laura Pausini", "t": "Se fué"}, {"n": 8, "a": "Tormenta", "t": "Por Favor, Me Siento Sola"}, {"n": 9, "a": "Maria Conchita Alonso", "t": "Acaríciame"}, {"n": 10, "a": "Myriam Hernandez", "t": "Huele A Peligro"}, {"n": 11, "a": "Myriam Hernandez", "t": "Eres"}, {"n": 12, "a": "Myriam Hernandez", "t": "Ay Amor"}, {"n": 13, "a": "Myriam Hernandez", "t": "Peligroso Amor"}, {"n": 14, "a": "Ana Cirré", "t": "Jamás Me Olvidarás"}, {"n": 15, "a": "Gian Marco", "t": "Ay Amor"}, {"n": 16, "a": "Yuri", "t": "Como Te Amé"}, {"n": 17, "a": "Amanda Miguel", "t": "Ámame Una Vez Más"}, {"n": 18, "a": "Karina", "t": "Sé Cómo Duele"}, {"n": 19, "a": "Yuri", "t": "Detrás de Mi Ventana"}, {"n": 20, "a": "Yuri", "t": "Yo Te Pido Amor"}, {"n": 21, "a": "Maria Conchita Alonso", "t": "La Loca"}, {"n": 22, "a": "Yuri", "t": "Todo Mi Corazón"}, {"n": 23, "a": "Cristian Castro", "t": "Mañana"}, {"n": 24, "a": "Angela Carrasco", "t": "Si Tú Eres Mi Hombre y Yo Tu Mujer"}, {"n": 25, "a": "Amanda Miguel", "t": "Mi Buen Corazón"}, {"n": 26, "a": "Amanda Miguel", "t": "Hagamos Un Trato"}, {"n": 27, "a": "Amanda Miguel", "t": "Media Hora"}, {"n": 28, "a": "Belanova", "t": "Y Aún Así Te Vas"}, {"n": 29, "a": "Natalia y La Forquetina", "t": "Casa"}, {"n": 30, "a": "Natalia Lafourcade", "t": "Tú Sí Sabes Quererme"}, {"n": 31, "a": "Mœnia", "t": "No Dices Más"}, {"n": 32, "a": "Rocío Dúrcal", "t": "Acompáñame"}, {"n": 33, "a": "Monica Naranjo", "t": "El Amor Coloca"}, {"n": 34, "a": "Shakira", "t": "Tú"}, {"n": 35, "a": "Laura Pausini", "t": "La soledad"}, {"n": 36, "a": "Laura Pausini", "t": "Volveré junto a ti"}, {"n": 37, "a": "Bravo", "t": "Lady, Lady"}, {"n": 38, "a": "Maria Conchita Alonso", "t": "Noche de Copas"}, {"n": 39, "a": "Sheena Easton", "t": "Todo Me Recuerda a Ti"}, {"n": 40, "a": "Selena", "t": "No Me Queda Más"}, {"n": 41, "a": "Jennifer Lopez", "t": "No Me Ames"}, {"n": 42, "a": "Karina", "t": "Concierto para enamorados"}, {"n": 43, "a": "Karina", "t": "El baúl de los recuerdos"}, {"n": 44, "a": "Cristian Castro", "t": "Vuélveme A Querer"}, {"n": 45, "a": "Amanda Miguel", "t": "Así No Te Amará Jamás"}, {"n": 46, "a": "Amanda Miguel", "t": "El Me Mintio"}, {"n": 47, "a": "Myriam Hernandez", "t": "Herida"}, {"n": 48, "a": "Ana Cirré", "t": "Casi Perfecto"}, {"n": 49, "a": "Shakira", "t": "Antología"}, {"n": 50, "a": "Yuri", "t": "Maldita Primavera"}, {"n": 51, "a": "Marisela", "t": "Sola Con Mi Soledad"}, {"n": 52, "a": "Mentiras: La Serie", "t": "Pobre Secretaria"}, {"n": 53, "a": "Myriam Hernandez", "t": "El Hombre Que Yo Amo"}, {"n": 54, "a": "Karina", "t": "A Quién"}, {"n": 55, "a": "Noelia", "t": "Tú"}, {"n": 56, "a": "Angela Carrasco", "t": "Quererte a Ti"}, {"n": 57, "a": "Myriam Hernandez", "t": "Mío"}, {"n": 58, "a": "Cristian Castro", "t": "No Podras"}, {"n": 59, "a": "Mœnia", "t": "Ni Tú Ni Nadie"}, {"n": 60, "a": "Angela Carrasco", "t": "Alguien Como Tú"}, {"n": 61, "a": "Angela Carrasco", "t": "Quiereme"}, {"n": 62, "a": "Angela Carrasco", "t": "No Me Puedo Quejar"}, {"n": 63, "a": "Marisela", "t": "Sin Él"}, {"n": 64, "a": "Shakira", "t": "Ciega, Sordomuda"}, {"n": 65, "a": "Rocío Dúrcal", "t": "La Gata Bajo la Lluvia"}, {"n": 66, "a": "Daniela Romo", "t": "De Mi Enamórate"}, {"n": 67, "a": "Lucero", "t": "Electricidad"}, {"n": 68, "a": "Lucero", "t": "Tacticas De Guerra"}, {"n": 69, "a": "Amanda Miguel", "t": "Dudas"}, {"n": 70, "a": "Shakira", "t": "Donde Estas Corazon"}, {"n": 71, "a": "Angélica María", "t": "El Hombre de Mi Vida"}, {"n": 72, "a": "Monica Naranjo", "t": "Empiezo a Recordarte"}, {"n": 73, "a": "Lucero", "t": "Amor Secreto"}, {"n": 74, "a": "Yuri", "t": "El Espejo"}, {"n": 75, "a": "Rocío Dúrcal", "t": "Déjame Vivir"}, {"n": 76, "a": "Marisela", "t": "La Pareja Ideal"}, {"n": 77, "a": "Alejandro Sanz", "t": "Corazón partío"}, {"n": 78, "a": "Shakira", "t": "Pies Descalzos, Sueños Blancos"}, {"n": 79, "a": "Soraya", "t": "De Repente"}, {"n": 80, "a": "Myriam Hernandez", "t": "Te Pareces Tanto A Él"}, {"n": 81, "a": "Alex Ubago", "t": "Sin miedo a nada"}, {"n": 82, "a": "Shakira", "t": "Inevitable"}, {"n": 83, "a": "Roxette", "t": "No Se Si Es Amor"}, {"n": 84, "a": "Rosana", "t": "Si tú no estas"}, {"n": 85, "a": "Yuri", "t": "Déjala"}, {"n": 86, "a": "Laura Pausini", "t": "Escucha a tu corazón"}, {"n": 87, "a": "Shakira", "t": "Estoy Aquí"}, {"n": 88, "a": "Mocedades", "t": "Eres Tú"}, {"n": 89, "a": "Mocedades", "t": "Tómame o Déjame"}, {"n": 90, "a": "Mocedades", "t": "Dónde Estás Corazón?"}, {"n": 91, "a": "Mocedades", "t": "Quién Te Cantará?"}, {"n": 92, "a": "Mocedades", "t": "Amor de Hombre"}, {"n": 93, "a": "Trigo Limpio", "t": "Maria Magdalena"}, {"n": 94, "a": "Thalia", "t": "Sangre"}, {"n": 95, "a": "Miranda!", "t": "Don"}, {"n": 96, "a": "Thalia", "t": "Entre El Mar Y Una Estrella"}, {"n": 97, "a": "Natalia Oreiro", "t": "Me Muero de Amor"}, {"n": 98, "a": "Christina y Los Subterraneos", "t": "Alguien que cuide de mí"}, {"n": 99, "a": "Dulce", "t": "Tu Muñeca"}, {"n": 100, "a": "Marta Sánchez", "t": "Desesperada"}, {"n": 101, "a": "Rocio Banquells", "t": "Luna mágica"}, {"n": 102, "a": "Yuri", "t": "De Qué Te Vale Fingir"}, {"n": 103, "a": "Gloria Trevi", "t": "El Recuento de los Daños"}, {"n": 104, "a": "Monica Naranjo", "t": "Oyeme"}, {"n": 105, "a": "Monica Naranjo", "t": "Sola"}, {"n": 106, "a": "Laura Pausini", "t": "Inolvidable"}, {"n": 107, "a": "Laura Pausini", "t": "Amores extraños"}, {"n": 108, "a": "Ednita Nazario", "t": "Lo Que Son Las Cosas"}, {"n": 109, "a": "Natalia Jiménez", "t": "Creo en Mi"}, {"n": 110, "a": "Rosario", "t": "Agua y Sal"}, {"n": 111, "a": "Thalia", "t": "Pienso En Ti"}, {"n": 112, "a": "Thalia", "t": "Piel Morena"}, {"n": 113, "a": "Thalia", "t": "Amor A La Mexicana"}, {"n": 114, "a": "Thalia", "t": "Regresa A Mi"}, {"n": 115, "a": "Daniela Romo", "t": "Mentiras"}, {"n": 116, "a": "Marisela", "t": "Enamorada y Herida"}, {"n": 117, "a": "Daniela Romo", "t": "Pobre secretaria"}, {"n": 118, "a": "Mon Laferte", "t": "Tu Falta De Querer"}, {"n": 119, "a": "Luis Miguel", "t": "Ahora Te Puedes Marchar"}, {"n": 120, "a": "José José", "t": "El Triste"}];
+const CALLED_KEY = 'bingo_musical_called_v1';
+const PLAYLIST_KEY = 'bingo_musical_playlist_v1';
+
+let called = JSON.parse(localStorage.getItem(CALLED_KEY) || '[]');
+let player = null;
+let playerReady = false;
+
+function extractListId(input) {
+  input = input.trim();
+  const match = input.match(/[?&]list=([a-zA-Z0-9_-]+)/);
+  if (match) return match[1];
+  return input; // assume it's already a bare ID
+}
+
+function buildGrid() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  SONGS.forEach(s => {
+    const cell = document.createElement('div');
+    cell.className = 'cell' + (called.includes(s.n) ? ' called' : '');
+    cell.textContent = s.n;
+    cell.title = s.a + ' - ' + s.t;
+    cell.onclick = () => playSong(s.n, true);
+    cell.id = 'cell-' + s.n;
+    grid.appendChild(cell);
+  });
+}
+
+function updateStats() {
+  document.getElementById('stats').textContent = called.length + ' de ' + SONGS.length + ' canciones cantadas';
+}
+
+function markCalled(num) {
+  if (!called.includes(num)) {
+    called.push(num);
+    localStorage.setItem(CALLED_KEY, JSON.stringify(called));
+  }
+  document.querySelectorAll('.cell.current').forEach(c => c.classList.remove('current'));
+  const cell = document.getElementById('cell-' + num);
+  if (cell) {
+    cell.classList.add('called');
+    cell.classList.add('current');
+  }
+  updateStats();
+}
+
+function showCurrentSong(song) {
+  const box = document.getElementById('currentSong');
+  box.querySelector('.num').textContent = song.n;
+  box.querySelector('.title').textContent = song.t;
+  box.querySelector('.artist').textContent = song.a;
+}
+
+function playSong(num, manual) {
+  const song = SONGS.find(s => s.n === num);
+  if (!song) return;
+  showCurrentSong(song);
+  markCalled(num);
+  if (playerReady && player.playVideoAt) {
+    player.playVideoAt(num - 1);
+  }
+}
+
+document.getElementById('randomBtn').onclick = () => {
+  const remaining = SONGS.map(s => s.n).filter(n => !called.includes(n));
+  if (remaining.length === 0) {
+    alert('Ya sonaron las 120 canciones.');
+    return;
+  }
+  const pick = remaining[Math.floor(Math.random() * remaining.length)];
+  playSong(pick, false);
+};
+
+document.getElementById('resetBtn').onclick = () => {
+  if (!confirm('Esto borra el progreso de canciones cantadas. Seguro?')) return;
+  called = [];
+  localStorage.setItem(CALLED_KEY, JSON.stringify(called));
+  buildGrid();
+  updateStats();
+  document.getElementById('currentSong').querySelector('.num').textContent = '—';
+  document.getElementById('currentSong').querySelector('.title').textContent = 'Todavía no ha sonado ninguna canción';
+  document.getElementById('currentSong').querySelector('.artist').textContent = '';
+};
+
+document.getElementById('loadBtn').onclick = () => {
+  const raw = document.getElementById('playlistInput').value;
+  const listId = extractListId(raw);
+  if (!listId) return;
+  localStorage.setItem(PLAYLIST_KEY, raw);
+  loadPlaylist(listId);
+};
+
+function loadPlaylist(listId) {
+  if (!playerReady) {
+    window.__pendingListId = listId;
+    return;
+  }
+  player.cuePlaylist({listType: 'playlist', list: listId});
+}
+
+function onYouTubeIframeAPIReady() {
+  player = new YT.Player('player', {
+    height: '100%',
+    width: '100%',
+    playerVars: { rel: 0 },
+    events: {
+      onReady: () => {
+        playerReady = true;
+        const saved = localStorage.getItem(PLAYLIST_KEY);
+        if (saved) {
+          document.getElementById('playlistInput').value = saved;
+          loadPlaylist(extractListId(saved));
+        }
+        if (window.__pendingListId) {
+          loadPlaylist(window.__pendingListId);
+        }
+      }
+    }
+  });
+}
+
+const tag = document.createElement('script');
+tag.src = "https://www.youtube.com/iframe_api";
+document.head.appendChild(tag);
+
+buildGrid();
+updateStats();
+
+if (window.location.protocol === 'file:') {
+  document.getElementById('fileWarning').style.display = 'block';
+}
+</script>
+</body>
+</html>
