@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Control de Bingo Musical</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root {
     --cream: #FFFBF2;
@@ -26,7 +27,9 @@
   .topbar { display: flex; align-items: center; justify-content: center; position: relative; margin-bottom: 8px; }
   .topbar h1 { font-size: 22px; color: var(--accent); margin: 0; }
   .topbar .subtitle { font-size: 12px; color: #8a7a5c; margin: 0; text-align: center; }
-  #configToggle { position: absolute; right: 0; top: 0; font-size: 13px; padding: 6px 12px; }
+  .topbar-actions { position: absolute; right: 0; top: 0; display: flex; gap: 8px; }
+  .topbar-actions button { font-size: 13px; padding: 6px 12px; }
+  #cardsToggle { background: #eee; }
 
   .strip { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
   #player { width: 220px; min-width: 220px; aspect-ratio: 16/9; border-radius: 10px; overflow: hidden; border: 3px solid var(--outline); }
@@ -68,6 +71,15 @@
   .note code { display: block; background: #2b2620; color: #f5e6c8; padding: 6px 8px; border-radius: 6px; margin-top: 6px; font-size: 12px; overflow-x: auto; }
   .note b { color: var(--accent); }
   #closeConfigBtn { background: #eee; }
+  #cardsOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; z-index: 50; }
+  #cardsOverlay.hidden { display: none; }
+  #cardsPanel { background: white; border: 3px solid var(--outline); border-radius: 16px; padding: 20px; max-width: 560px; width: 92%; max-height: 88vh; overflow-y: auto; }
+  #cardsPanel input[type=number], #cardsPanel select { width: 100%; padding: 8px; font-size: 14px; border: 2px solid #ccc; border-radius: 8px; }
+  #cardsPanel input[type=file] { width: 100%; margin-bottom: 6px; font-size: 13px; }
+  #cardsPanel button { width: 100%; padding: 10px; font-size: 15px; margin-top: 8px; }
+  .row4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+  .row2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 10px; }
+  #templatePreviewWrap img { max-width: 120px; border: 2px solid #ccc; border-radius: 8px; margin-bottom: 8px; }
   .field-label { font-weight: bold; display: block; margin-bottom: 4px; font-size: 14px; }
   hr.sep { border: none; border-top: 2px solid #eee; margin: 14px 0; }
 </style>
@@ -79,7 +91,10 @@
     <h1>Bingo Musical</h1>
     <div class="subtitle">Panel de control del anfitrión</div>
   </div>
-  <button id="configToggle">Configuración</button>
+  <div class="topbar-actions">
+    <button id="cardsToggle">Generar cartones</button>
+    <button id="configToggle">Configuración</button>
+  </div>
 </div>
 
 <div class="strip">
@@ -121,6 +136,55 @@
       http://localhost:8000/, o subirlo a GitHub Pages.
     </div>
     <button id="closeConfigBtn">Cerrar</button>
+  </div>
+</div>
+
+<div id="cardsOverlay" class="hidden">
+  <div id="cardsPanel">
+    <h2 style="margin-top:0; color:var(--accent);">Generar cartones para imprimir</h2>
+
+    <div class="note" style="margin-bottom:14px;">
+      Si todavía no tenés una plantilla diseñada, descargá primero esta guía de referencia. Marca dónde va cada
+      una de las 25 celdas, la abrís en Photopea (o lo que uses), diseñás encima respetando esos mismos
+      recuadros, y exportás tu versión final sin el texto de "Celda N", eso es lo que después subís abajo.
+      <div class="row2" style="margin-top:8px;">
+        <div><span class="field-label">Ancho total (px)</span><input type="number" id="guideWInput" value="1140"></div>
+        <div><span class="field-label">Alto total (px)</span><input type="number" id="guideHInput" value="1515"></div>
+      </div>
+      <button id="downloadGuideBtn" type="button">Descargar plantilla guía (PNG)</button>
+    </div>
+
+    <hr class="sep">
+
+    <span class="field-label">Plantilla del cartón (PNG, un solo cartón, sin texto en las celdas)</span>
+    <input type="file" id="templateInput" accept="image/png">
+    <div id="templatePreviewWrap"></div>
+
+    <span class="field-label">Imágenes para el centro (podés seleccionar varias a la vez)</span>
+    <input type="file" id="stickersInput" accept="image/png,image/jpeg" multiple>
+    <div id="stickersCount" style="font-size:12px; color:#8a7a5c; margin-bottom:10px;"></div>
+
+    <div class="row2">
+      <div><span class="field-label">Cantidad de cartones</span><input type="number" id="numCardsInput" value="50" min="1" max="500"></div>
+      <div><span class="field-label">Por hoja</span>
+        <select id="perPageInput"><option value="4">4</option><option value="1">1</option><option value="2">2</option></select>
+      </div>
+    </div>
+
+    <details style="margin-bottom:10px;">
+      <summary style="cursor:pointer; font-weight:bold; font-size:13px;">Coordenadas de la cuadrícula dentro de la plantilla (avanzado)</summary>
+      <div class="row4" style="margin-top:8px;">
+        <div><span class="field-label">X inicial</span><input type="number" id="gx0" value="28"></div>
+        <div><span class="field-label">Y inicial</span><input type="number" id="gy0" value="330"></div>
+        <div><span class="field-label">X final</span><input type="number" id="gx1" value="1112"></div>
+        <div><span class="field-label">Y final</span><input type="number" id="gy1" value="1246"></div>
+      </div>
+      <div style="font-size:12px; color:#8a7a5c;">Estos valores son en píxeles de la imagen de plantilla que subiste, son los que ya usamos para este bingo. Si subís otra plantilla de otro tamaño, ajustalos.</div>
+    </details>
+
+    <button id="generateCardsBtn">Generar PDF</button>
+    <div id="cardsProgress" style="font-size:13px; text-align:center; margin-top:6px;"></div>
+    <button id="closeCardsBtn" style="background:#eee;">Cerrar</button>
   </div>
 </div>
 
@@ -308,6 +372,344 @@ if (!localStorage.getItem(PLAYLIST_KEY)) {
 } else {
   document.getElementById('configOverlay').classList.add('hidden');
 }
+
+// =================== Generador de cartones (PDF) ===================
+
+let templateImg = null;
+let stickerImgs = [];
+
+function loadImageFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+document.getElementById('cardsToggle').onclick = () => {
+  document.getElementById('cardsOverlay').classList.remove('hidden');
+};
+document.getElementById('closeCardsBtn').onclick = () => {
+  document.getElementById('cardsOverlay').classList.add('hidden');
+};
+
+document.getElementById('downloadGuideBtn').onclick = () => {
+  const W = parseInt(document.getElementById('guideWInput').value) || 1140;
+  const H = parseInt(document.getElementById('guideHInput').value) || 1515;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, W, H);
+
+  const margin = Math.round(0.12 * (W / 3.8));
+  ctx.strokeStyle = '#B43C14';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(margin, margin, W - 2 * margin, H - 2 * margin);
+
+  const headerH = Math.round(H * 0.19);
+  const footerH = Math.round(H * 0.088);
+  ctx.strokeStyle = '#969696';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(margin, margin, W - 2 * margin, headerH);
+  ctx.fillStyle = '#787878';
+  ctx.textAlign = 'center';
+  ctx.font = Math.round(H * 0.017) + 'px Arial';
+  ctx.fillText('[ ZONA DE TITULO / DECORACION ]', W / 2, margin + headerH / 2);
+
+  ctx.strokeRect(margin, H - margin - footerH, W - 2 * margin, footerH);
+  ctx.fillText('[ ZONA PARA N° DE CARTON ]', W / 2, H - margin - footerH / 2);
+
+  const gridTop = margin + headerH + Math.round(H * 0.007);
+  const gridBottom = H - margin - footerH - Math.round(H * 0.007);
+  const gridLeft = margin, gridRight = W - margin;
+  const cellW = (gridRight - gridLeft) / 5, cellH = (gridBottom - gridTop) / 5;
+
+  for (let r = 0; r < 5; r++) {
+    for (let c = 0; c < 5; c++) {
+      const x0 = gridLeft + c * cellW, y0 = gridTop + r * cellH;
+      ctx.strokeStyle = '#C88C3C';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x0, y0, cellW, cellH);
+      const n = r * 5 + c + 1;
+      if (r === 2 && c === 2) {
+        ctx.fillStyle = '#B43C14';
+        ctx.font = 'bold ' + Math.round(H * 0.016) + 'px Arial';
+        ctx.fillText('LIBRE', x0 + cellW / 2, y0 + cellH / 2 - 4);
+        ctx.font = Math.round(H * 0.013) + 'px Arial';
+        ctx.fillText('(centro)', x0 + cellW / 2, y0 + cellH / 2 + 16);
+      } else {
+        ctx.fillStyle = '#5A5A5A';
+        ctx.font = 'bold ' + Math.round(H * 0.012) + 'px Arial';
+        ctx.fillText('Celda ' + n, x0 + cellW / 2, y0 + Math.round(H * 0.018));
+        ctx.fillStyle = '#969696';
+        ctx.font = Math.round(H * 0.011) + 'px Arial';
+        ctx.fillText('[canción]', x0 + cellW / 2, y0 + cellH / 2 + 4);
+        ctx.fillText('[artista]', x0 + cellW / 2, y0 + cellH / 2 + 20);
+      }
+    }
+  }
+
+  ctx.fillStyle = '#969696';
+  ctx.font = Math.round(H * 0.009) + 'px Arial';
+  ctx.fillText('Guía de referencia — carton individual — ' + W + 'x' + H + 'px', W / 2, H - margin / 2);
+
+  const link = document.createElement('a');
+  link.download = 'guia_carton.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+
+  document.getElementById('gx0').value = gridLeft;
+  document.getElementById('gy0').value = gridTop;
+  document.getElementById('gx1').value = gridRight;
+  document.getElementById('gy1').value = gridBottom;
+};
+
+document.getElementById('templateInput').onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  templateImg = await loadImageFile(file);
+  document.getElementById('gx1').value = templateImg.naturalWidth - 28;
+  document.getElementById('gy1').value = templateImg.naturalHeight - 260;
+  const wrap = document.getElementById('templatePreviewWrap');
+  wrap.innerHTML = '';
+  const prev = document.createElement('img');
+  prev.src = templateImg.src;
+  wrap.appendChild(prev);
+  wrap.appendChild(document.createElement('br'));
+  const dims = document.createElement('span');
+  dims.style.fontSize = '12px';
+  dims.style.color = '#8a7a5c';
+  dims.textContent = templateImg.naturalWidth + ' x ' + templateImg.naturalHeight + ' px';
+  wrap.appendChild(dims);
+};
+
+document.getElementById('stickersInput').onchange = async (e) => {
+  const files = Array.from(e.target.files);
+  stickerImgs = await Promise.all(files.map(loadImageFile));
+  document.getElementById('stickersCount').textContent = stickerImgs.length + ' imágenes cargadas';
+};
+
+function wrapCanvasText(ctx, text, maxWidth) {
+  const words = text.split(' ');
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const test = (cur + ' ' + w).trim();
+    if (ctx.measureText(test).width <= maxWidth) {
+      cur = test;
+    } else {
+      if (cur) lines.push(cur);
+      cur = w;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+function cleanTitleForCard(t) {
+  const m = t.split(/\s+[\(\[]|\s+-\s+/)[0];
+  return m.trim();
+}
+
+function drawRoundedRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function sampleWithoutReplacement(arr, n) {
+  const copy = arr.slice();
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}
+
+function buildStickerSequence(n) {
+  const seq = [];
+  let last = null;
+  while (seq.length < n) {
+    const batch = stickerImgs.slice();
+    for (let i = batch.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [batch[i], batch[j]] = [batch[j], batch[i]];
+    }
+    if (last !== null && batch.length > 1 && batch[0] === last) {
+      const j = 1 + Math.floor(Math.random() * (batch.length - 1));
+      [batch[0], batch[j]] = [batch[j], batch[0]];
+    }
+    seq.push(...batch);
+    last = seq[seq.length - 1];
+  }
+  return seq.slice(0, n);
+}
+
+function drawCard(canvas, cardNum, cardSongs, stickerImg, gx0, gy0, gx1, gy1) {
+  const W = templateImg.naturalWidth, H = templateImg.naturalHeight;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, W, H);
+  ctx.drawImage(templateImg, 0, 0, W, H);
+
+  const CREAM = '#FFFBF2', OUTLINE = '#1A1A1A', ACCENT = '#C1652F', TEXT_DARK = '#37331F';
+  const cols = 5, rows = 5;
+  const cw = (gx1 - gx0) / cols, ch = (gy1 - gy0) / rows;
+  const pad = 5;
+
+  let idx = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x0 = gx0 + c * cw, y0 = gy0 + r * ch;
+      const bx = x0 + pad, by = y0 + pad, bw = cw - 2 * pad, bh = ch - 2 * pad;
+
+      if (r === 2 && c === 2) {
+        drawRoundedRect(ctx, bx, by, bw, bh, 14);
+        ctx.fillStyle = CREAM; ctx.fill();
+        ctx.lineWidth = 3; ctx.strokeStyle = OUTLINE; ctx.stroke();
+        if (stickerImg) {
+          const targetH = bh * 0.92;
+          const ratio = targetH / stickerImg.naturalHeight;
+          const sw = stickerImg.naturalWidth * ratio, sh = targetH;
+          ctx.drawImage(stickerImg, x0 + (cw - sw) / 2, y0 + (ch - sh) / 2, sw, sh);
+        }
+        continue;
+      }
+
+      const song = cardSongs[idx]; idx++;
+      drawRoundedRect(ctx, bx, by, bw, bh, 14);
+      ctx.fillStyle = CREAM; ctx.fill();
+      ctx.lineWidth = 3; ctx.strokeStyle = OUTLINE; ctx.stroke();
+
+      const title = cleanTitleForCard(song.t);
+      const maxTextW = cw - 2 * pad - 10;
+
+      let titleSize = 27;
+      ctx.font = 'bold ' + titleSize + 'px Arial';
+      let titleLines = wrapCanvasText(ctx, title, maxTextW);
+      if (titleLines.length > 3) {
+        titleSize = 23;
+        ctx.font = 'bold ' + titleSize + 'px Arial';
+        titleLines = wrapCanvasText(ctx, title, maxTextW).slice(0, 3);
+      }
+      const artistSize = 20;
+      ctx.font = artistSize + 'px Arial';
+      let artistLines = wrapCanvasText(ctx, song.a, maxTextW);
+      if (artistLines.length > 1) artistLines = [artistLines[0].slice(0, 18) + '…'];
+
+      let ty = y0 + 12;
+      const titleStep = titleSize + 6, artistStep = artistSize + 4;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = TEXT_DARK;
+      ctx.font = 'bold ' + titleSize + 'px Arial';
+      for (const ln of titleLines) {
+        ctx.fillText(ln, x0 + cw / 2, ty + titleSize * 0.8);
+        ty += titleStep;
+      }
+      ty += 4;
+      ctx.fillStyle = ACCENT;
+      ctx.font = artistSize + 'px Arial';
+      for (const ln of artistLines) {
+        ctx.fillText(ln, x0 + cw / 2, ty + artistSize * 0.8);
+        ty += artistStep;
+      }
+
+      const numStr = String(song.n);
+      ctx.font = 'bold 26px Arial';
+      const tw = ctx.measureText(numStr).width;
+      const badgeW = tw + 22, badgeH = 40;
+      const bx1 = x0 + cw - pad - 10, by1 = y0 + ch - pad - 10;
+      const bx0b = bx1 - badgeW, by0b = by1 - badgeH;
+      drawRoundedRect(ctx, bx0b, by0b, badgeW, badgeH, 10);
+      ctx.fillStyle = ACCENT; ctx.fill();
+      ctx.lineWidth = 3; ctx.strokeStyle = OUTLINE; ctx.stroke();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.fillText(numStr, (bx0b + bx1) / 2, (by0b + by1) / 2 + 9);
+    }
+  }
+
+  ctx.font = 'bold 34px Arial';
+  ctx.fillStyle = '#5A4632';
+  ctx.textAlign = 'center';
+  ctx.fillText('Cartón N° ' + String(cardNum).padStart(2, '0'), W / 2, H - 130);
+}
+
+document.getElementById('generateCardsBtn').onclick = async () => {
+  const progress = document.getElementById('cardsProgress');
+  if (!templateImg) { alert('Subí primero la plantilla del cartón (PNG).'); return; }
+  if (SONGS.length < 24) { alert('Necesitás al menos 24 canciones en la lista para armar un cartón 5x5.'); return; }
+
+  const numCards = parseInt(document.getElementById('numCardsInput').value) || 50;
+  const perPage = parseInt(document.getElementById('perPageInput').value) || 4;
+  const gx0 = parseFloat(document.getElementById('gx0').value);
+  const gy0 = parseFloat(document.getElementById('gy0').value);
+  const gx1 = parseFloat(document.getElementById('gx1').value);
+  const gy1 = parseFloat(document.getElementById('gy1').value);
+
+  const btn = document.getElementById('generateCardsBtn');
+  btn.disabled = true;
+
+  const stickerSeq = stickerImgs.length ? buildStickerSequence(numCards) : [];
+  const canvas = document.createElement('canvas');
+  const cardW_in = templateImg.naturalWidth / 300;
+  const cardH_in = templateImg.naturalHeight / 300;
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: 'in', format: 'letter' });
+  const pageW = 8.5, pageH = 11;
+
+  let positions;
+  if (perPage === 1) {
+    positions = [[(pageW - cardW_in) / 2, (pageH - cardH_in) / 2]];
+  } else if (perPage === 2) {
+    const gap = 0.3;
+    const totalH = cardH_in * 2 + gap;
+    const top = (pageH - totalH) / 2;
+    const left = (pageW - cardW_in) / 2;
+    positions = [[left, top], [left, top + cardH_in + gap]];
+  } else {
+    const gapX = 0.25, gapY = 0.25;
+    const totalW = cardW_in * 2 + gapX, totalH = cardH_in * 2 + gapY;
+    const left = (pageW - totalW) / 2, top = (pageH - totalH) / 2;
+    positions = [
+      [left, top], [left + cardW_in + gapX, top],
+      [left, top + cardH_in + gapY], [left + cardW_in + gapX, top + cardH_in + gapY],
+    ];
+  }
+
+  for (let i = 0; i < numCards; i++) {
+    const cardSongs = sampleWithoutReplacement(SONGS, 24);
+    const sticker = stickerSeq.length ? stickerSeq[i] : null;
+    drawCard(canvas, i + 1, cardSongs, sticker, gx0, gy0, gx1, gy1);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+
+    const posIdx = i % perPage;
+    if (i > 0 && posIdx === 0) pdf.addPage();
+    const [px, py] = positions[posIdx];
+    pdf.addImage(dataUrl, 'JPEG', px, py, cardW_in, cardH_in);
+
+    progress.textContent = 'Generando ' + (i + 1) + ' de ' + numCards + '...';
+    if (i % 5 === 0) await new Promise(r => setTimeout(r, 0));
+  }
+
+  pdf.save('bingo_musical_cartones.pdf');
+  progress.textContent = 'Listo, se descargó el PDF con ' + numCards + ' cartones.';
+  btn.disabled = false;
+};
 </script>
 </body>
 </html>
